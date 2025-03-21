@@ -251,8 +251,7 @@ local function getClosestPlayer()
 end
 
 local function UpdateHighlight()
-
-    if not Toggles.HighlightEnabled.Value then
+    if not Toggles or not Toggles.HighlightEnabled or Toggles.HighlightEnabled.Value ~= true then
         Highlight.Enabled = false
         Highlight.Adornee = nil
         return
@@ -260,22 +259,28 @@ local function UpdateHighlight()
 
     local success, ClosestPart = pcall(getClosestPlayer)
 
-    if not success or not ClosestPart or not ClosestPart.Parent then
+    if not success or not ClosestPart or not ClosestPart.Parent or not ClosestPart.Parent:IsDescendantOf(workspace) then
         Highlight.Enabled = false
         Highlight.Adornee = nil
         return
     end
 
     local Character = ClosestPart.Parent
-    local TargetPart = Character:FindFirstChild("Head") or Character:FindFirstChild("HumanoidRootPart") 
+    local TargetPart = Character:FindFirstChild("Head") or Character:FindFirstChild("HumanoidRootPart")
 
     if not TargetPart then
         Highlight.Enabled = false
         Highlight.Adornee = nil
         return
     end
-	
-    Highlight.Parent = Character
+
+    if Character.Parent and not Character:IsDescendantOf(game) then
+        Highlight.Enabled = false
+        Highlight.Adornee = nil
+        return
+    end
+
+    Highlight.Parent = game:GetService("CoreGui")
     Highlight.Adornee = Character
     Highlight.Enabled = true
 end
@@ -344,8 +349,19 @@ local function updateAllHeadDots()
     end
 
     for _, player in ipairs(Players:GetPlayers()) do
-        if player.Character then
-            applyHeadDot(player.Character)
+        local character = player.Character
+        if character then
+            local humanoid = character:FindFirstChild("Humanoid")
+			
+            if not humanoid or humanoid.Health <= 0 then
+                if cachedHeadDots[character] then
+                    cachedHeadDots[character]:Destroy()
+                    cachedHeadDots[character] = nil
+                end
+                continue
+            end
+
+            applyHeadDot(character)
         end
     end
 end
