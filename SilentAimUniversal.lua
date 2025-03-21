@@ -80,13 +80,12 @@ fov_circle.Transparency = 1
 fov_circle.Color = Color3.fromRGB(54, 57, 241)
 
 local Highlight = Instance.new("Highlight")
-Highlight.FillColor = Color3.fromRGB(255, 0, 255) -- Color rosa
-Highlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- Contorno blanco
+Highlight.FillColor = Color3.fromRGB(255, 0, 255) 
+Highlight.OutlineColor = Color3.fromRGB(255, 255, 255) 
 Highlight.FillTransparency = 0.7
 Highlight.OutlineTransparency = 0
 Highlight.Enabled = false
 Highlight.Parent = game.CoreGui
-
 
 local ExpectedArguments = {
     FindPartOnRayWithIgnoreList = {
@@ -252,6 +251,7 @@ local function getClosestPlayer()
 end
 
 local function UpdateHighlight()
+
     if not Toggles.HighlightEnabled.Value then
         Highlight.Enabled = false
         Highlight.Adornee = nil
@@ -274,7 +274,7 @@ local function UpdateHighlight()
         Highlight.Adornee = nil
         return
     end
-
+	
     Highlight.Parent = Character
     Highlight.Adornee = Character
     Highlight.Enabled = true
@@ -285,48 +285,56 @@ RenderStepped:Connect(UpdateHighlight)
 local cachedHeadDots = {} 
 
 local function applyHeadDot(character)
+    if not character or not SilentAimSettings.HeadDotEnabled then
+        return
+    end
+
     local targetPlayer = Players:GetPlayerFromCharacter(character)
     local head = character:FindFirstChild("Head")
+    local humanoid = character:FindFirstChild("Humanoid") 
 
-    if head and character ~= LocalPlayer.Character then
-        if SilentAimSettings.HeadDotEnabled then
-            if not cachedHeadDots[character] then
-                local headDot = Instance.new("BillboardGui")
-                headDot.Name = "HeadDot"
-                headDot.Size = UDim2.new(0, 7, 0, 7)
-                headDot.SizeOffset = Vector2.new(0, 0) 
-                headDot.StudsOffset = Vector3.new(0, 0.8, 0) 
-                headDot.AlwaysOnTop = true
-                headDot.Adornee = head
+    if not head or not humanoid or humanoid.Health <= 0 then
+        return
+    end
 
-                local dot = Instance.new("Frame")
-                dot.Size = UDim2.new(1, 0, 1, 0)
-                dot.BackgroundColor3 = Color3.new(1, 0, 0) 
-                dot.BackgroundTransparency = 0.4
-                dot.BorderSizePixel = 0
+    if character == LocalPlayer.Character or head:FindFirstChild("HeadDot") then
+        return
+    end
 
-                local corner = Instance.new("UICorner")
-                corner.CornerRadius = UDim.new(1, 0) 
-                corner.Parent = dot
+    if not cachedHeadDots[character] then
+        local headDot = Instance.new("BillboardGui")
+        headDot.Name = "HeadDot"
+        headDot.Size = UDim2.new(0, 6, 0, 6)
+        headDot.StudsOffset = Vector3.new(0, 0.9, 0)
+        headDot.AlwaysOnTop = true
+        headDot.Adornee = head
 
-                dot.Parent = headDot
-                headDot.Parent = head
-                cachedHeadDots[character] = headDot
-            end
-        elseif cachedHeadDots[character] then
-            cachedHeadDots[character]:Destroy()
-            cachedHeadDots[character] = nil
-        end
+        local dot = Instance.new("Frame")
+        dot.Size = UDim2.new(1, 0, 1, 0)
+        dot.BackgroundColor3 = Color3.new(1, 0, 0)
+        dot.BackgroundTransparency = 0.4
+        dot.BorderSizePixel = 0
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(1, 0)
+        corner.Parent = dot
+
+        dot.Parent = headDot
+        headDot.Parent = head
+        cachedHeadDots[character] = headDot
     end
 end
 
 local function clearAllHeadDots()
-    for _, gui in pairs(cachedHeadDots) do
-        if gui then
-            gui:Destroy()
+    if next(cachedHeadDots) == nil then return end 
+
+    for character, headDot in pairs(cachedHeadDots) do
+        if headDot then
+            headDot:Destroy()
         end
     end
-    cachedHeadDots = {}
+
+    cachedHeadDots = {} 
 end
 
 local function updateAllHeadDots()
@@ -335,7 +343,7 @@ local function updateAllHeadDots()
         return
     end
 
-    for _, player in pairs(Players:GetPlayers()) do
+    for _, player in ipairs(Players:GetPlayers()) do
         if player.Character then
             applyHeadDot(player.Character)
         end
@@ -489,29 +497,26 @@ end
 
 resume(create(function()
     RenderStepped:Connect(function()
+        local closest = getClosestPlayer() 
+
         if Toggles.MousePosition.Value and Toggles.aim_Enabled.Value then
-            if getClosestPlayer() then 
-                local Root = getClosestPlayer().Parent.PrimaryPart or getClosestPlayer()
-                local RootToViewportPoint, IsOnScreen = WorldToViewportPoint(Camera, Root.Position);
-                -- using PrimaryPart instead because if your Target Part is "Random" it will flicker the square between the Target's Head and HumanoidRootPart (its annoying)
-                
+            if closest then
+                local Root = closest.Parent.PrimaryPart or closest
+                local RootToViewportPoint, IsOnScreen = WorldToViewportPoint(Camera, Root.Position)
+
                 mouse_box.Visible = IsOnScreen
                 mouse_box.Position = Vector2.new(RootToViewportPoint.X, RootToViewportPoint.Y)
-            else 
-                mouse_box.Visible = false 
+            else
+                mouse_box.Visible = false
                 mouse_box.Position = Vector2.new()
             end
         end
-        
-        resume(create(function()
-            RenderStepped:Connect(function()
-                if Toggles.Visible.Value then 
-                    fov_circle.Visible = Toggles.Visible.Value
-                    fov_circle.Color = Options.Color.Value
-                    fov_circle.Position = getMousePosition()
-                end
-            end)
-        end))
+
+        if Toggles.Visible.Value then 
+            fov_circle.Visible = Toggles.Visible.Value
+            fov_circle.Color = Options.Color.Value
+            fov_circle.Position = getMousePosition()
+        end
     end)
 end))
 
