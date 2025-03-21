@@ -346,7 +346,7 @@ local FieldOfViewBOX = GeneralTab:AddLeftTabbox("Field Of View") do
         SilentAimSettings.ShowSilentAimTarget = Toggles.MousePosition.Value 
     end)
 
-    Main:AddToggle("HighlightEnabled", {Text = "Show Target Highlight", Default = false}):OnChanged(function()
+    Main:AddToggle("HighlightEnabled", {Text = "Target Highlight", Default = false}):OnChanged(function()
         SilentAimSettings.ShowHighlight = Toggles.HighlightEnabled.Value
     end)
     
