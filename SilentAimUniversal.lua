@@ -24,7 +24,8 @@ local SilentAimSettings = {
     
     MouseHitPrediction = false,
     MouseHitPredictionAmount = 0.165,
-    HitChance = 100
+    HitChance = 100,
+    Chams = false,
 }
 
 -- variables
@@ -75,6 +76,14 @@ fov_circle.Visible = false
 fov_circle.ZIndex = 999
 fov_circle.Transparency = 1
 fov_circle.Color = Color3.fromRGB(54, 57, 241)
+
+local Highlight = Instance.new("Highlight")
+Highlight.FillColor = Color3.fromRGB(255, 0, 255) 
+Highlight.OutlineColor = Color3.fromRGB(255, 255, 255) 
+Highlight.FillTransparency = 0.7
+Highlight.OutlineTransparency = 0
+Highlight.Enabled = false
+Highlight.Parent = game.CoreGui
 
 local ExpectedArguments = {
     FindPartOnRayWithIgnoreList = {
@@ -128,12 +137,11 @@ end
 local Files = listfiles(string.format("%s/%s", "UniversalSilentAim", tostring(game.PlaceId)))
 
 -- functions
-local function GetFiles() -- credits to the linoria lib for this function, listfiles returns the files full path and its annoying
+local function GetFiles() 
 	local out = {}
 	for i = 1, #Files do
 		local file = Files[i]
 		if file:sub(-4) == '.lua' then
-			-- i hate this but it has to be done ...
 
 			local pos = file:find('.lua', 1, true)
 			local start = pos
@@ -239,6 +247,38 @@ local function getClosestPlayer()
     return Closest
 end
 
+local function UpdateHighlight()
+
+    if not Toggles.HighlightEnabled.Value then
+        Highlight.Enabled = false
+        Highlight.Adornee = nil
+        return
+    end
+
+    local success, ClosestPart = pcall(getClosestPlayer)
+
+    if not success or not ClosestPart or not ClosestPart.Parent then
+        Highlight.Enabled = false
+        Highlight.Adornee = nil
+        return
+    end
+
+    local Character = ClosestPart.Parent
+    local TargetPart = Character:FindFirstChild("Head") or Character:FindFirstChild("HumanoidRootPart")
+
+    if not TargetPart then
+        Highlight.Enabled = false
+        Highlight.Adornee = nil
+        return
+    end
+
+    Highlight.Parent = Character
+    Highlight.Adornee = Character
+    Highlight.Enabled = true
+end
+
+RenderStepped:Connect(UpdateHighlight)
+
 -- ui creating & handling
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
 Library:SetWatermark("Non Uni")
@@ -293,7 +333,7 @@ local MiscellaneousBOX = GeneralTab:AddLeftTabbox("Miscellaneous")
 local FieldOfViewBOX = GeneralTab:AddLeftTabbox("Field Of View") do
     local Main = FieldOfViewBOX:AddTab("Visuals")
     
-    Main:AddToggle("Visible", {Text = "Show FOV Circle"}):AddColorPicker("Color", {Default = Color3.fromRGB(54, 57, 241)}):OnChanged(function()
+    Main:AddToggle("Visible", {Text = "FOV Circle"}):AddColorPicker("Color", {Default = Color3.fromRGB(54, 57, 241)}):OnChanged(function()
         fov_circle.Visible = Toggles.Visible.Value
         SilentAimSettings.FOVVisible = Toggles.Visible.Value
     end)
@@ -301,10 +341,15 @@ local FieldOfViewBOX = GeneralTab:AddLeftTabbox("Field Of View") do
         fov_circle.Radius = Options.Radius.Value
         SilentAimSettings.FOVRadius = Options.Radius.Value
     end)
-    Main:AddToggle("MousePosition", {Text = "Show Silent Aim Target"}):AddColorPicker("MouseVisualizeColor", {Default = Color3.fromRGB(54, 57, 241)}):OnChanged(function()
+    Main:AddToggle("MousePosition", {Text = "Aim Target"}):AddColorPicker("MouseVisualizeColor", {Default = Color3.fromRGB(54, 57, 241)}):OnChanged(function()
         mouse_box.Visible = Toggles.MousePosition.Value 
         SilentAimSettings.ShowSilentAimTarget = Toggles.MousePosition.Value 
     end)
+
+    Main:AddToggle("HighlightEnabled", {Text = "Show Target Highlight", Default = false}):OnChanged(function()
+        SilentAimSettings.ShowHighlight = Toggles.HighlightEnabled.Value
+    end)
+    
     local PredictionTab = MiscellaneousBOX:AddTab("Prediction")
     PredictionTab:AddToggle("Prediction", {Text = "Mouse.Hit/Target Prediction"}):OnChanged(function()
         SilentAimSettings.MouseHitPrediction = Toggles.Prediction.Value
