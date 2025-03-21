@@ -8,7 +8,7 @@ if not syn or not protectgui then
 end
 
 local SilentAimSettings = {
-    Enabled = false,
+    SilentAim = false,
     
     ClassName = "Universal Silent Aim - Averiias, Stefanuk12, xaxa",
     ToggleKey = "RightAlt",
@@ -20,12 +20,14 @@ local SilentAimSettings = {
     
     FOVRadius = 130,
     FOVVisible = false,
-    ShowSilentAimTarget = true, 
+    ShowSilentAimTarget = false, 
     
     MouseHitPrediction = false,
     MouseHitPredictionAmount = 0.165,
     HitChance = 100,
-    Chams = false,
+    HighlightEnabled = false,
+    HeadDotEnabled = false,
+    
 }
 
 -- variables
@@ -78,12 +80,13 @@ fov_circle.Transparency = 1
 fov_circle.Color = Color3.fromRGB(54, 57, 241)
 
 local Highlight = Instance.new("Highlight")
-Highlight.FillColor = Color3.fromRGB(255, 0, 255) 
-Highlight.OutlineColor = Color3.fromRGB(255, 255, 255) 
+Highlight.FillColor = Color3.fromRGB(255, 0, 255) -- Color rosa
+Highlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- Contorno blanco
 Highlight.FillTransparency = 0.7
 Highlight.OutlineTransparency = 0
 Highlight.Enabled = false
 Highlight.Parent = game.CoreGui
+
 
 local ExpectedArguments = {
     FindPartOnRayWithIgnoreList = {
@@ -137,11 +140,12 @@ end
 local Files = listfiles(string.format("%s/%s", "UniversalSilentAim", tostring(game.PlaceId)))
 
 -- functions
-local function GetFiles() 
+local function GetFiles() -- credits to the linoria lib for this function, listfiles returns the files full path and its annoying
 	local out = {}
 	for i = 1, #Files do
 		local file = Files[i]
 		if file:sub(-4) == '.lua' then
+			-- i hate this but it has to be done ...
 
 			local pos = file:find('.lua', 1, true)
 			local start = pos
@@ -248,7 +252,6 @@ local function getClosestPlayer()
 end
 
 local function UpdateHighlight()
-
     if not Toggles.HighlightEnabled.Value then
         Highlight.Enabled = false
         Highlight.Adornee = nil
@@ -264,7 +267,7 @@ local function UpdateHighlight()
     end
 
     local Character = ClosestPart.Parent
-    local TargetPart = Character:FindFirstChild("Head") or Character:FindFirstChild("HumanoidRootPart")
+    local TargetPart = Character:FindFirstChild("Head") or Character:FindFirstChild("HumanoidRootPart") 
 
     if not TargetPart then
         Highlight.Enabled = false
@@ -279,6 +282,68 @@ end
 
 RenderStepped:Connect(UpdateHighlight)
 
+local cachedHeadDots = {} 
+
+local function applyHeadDot(character)
+    local targetPlayer = Players:GetPlayerFromCharacter(character)
+    local head = character:FindFirstChild("Head")
+
+    if head and character ~= LocalPlayer.Character then
+        if SilentAimSettings.HeadDotEnabled then
+            if not cachedHeadDots[character] then
+                local headDot = Instance.new("BillboardGui")
+                headDot.Name = "HeadDot"
+                headDot.Size = UDim2.new(0, 7, 0, 7)
+                headDot.SizeOffset = Vector2.new(0, 0) 
+                headDot.StudsOffset = Vector3.new(0, 0.8, 0) 
+                headDot.AlwaysOnTop = true
+                headDot.Adornee = head
+
+                local dot = Instance.new("Frame")
+                dot.Size = UDim2.new(1, 0, 1, 0)
+                dot.BackgroundColor3 = Color3.new(1, 0, 0) 
+                dot.BackgroundTransparency = 0.4
+                dot.BorderSizePixel = 0
+
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(1, 0) 
+                corner.Parent = dot
+
+                dot.Parent = headDot
+                headDot.Parent = head
+                cachedHeadDots[character] = headDot
+            end
+        elseif cachedHeadDots[character] then
+            cachedHeadDots[character]:Destroy()
+            cachedHeadDots[character] = nil
+        end
+    end
+end
+
+local function clearAllHeadDots()
+    for _, gui in pairs(cachedHeadDots) do
+        if gui then
+            gui:Destroy()
+        end
+    end
+    cachedHeadDots = {}
+end
+
+local function updateAllHeadDots()
+    if not SilentAimSettings.HeadDotEnabled then
+        clearAllHeadDots()
+        return
+    end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Character then
+            applyHeadDot(player.Character)
+        end
+    end
+end
+
+RenderStepped:Connect(updateAllHeadDots)
+
 -- ui creating & handling
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
 Library:SetWatermark("Non Uni")
@@ -288,7 +353,7 @@ local GeneralTab = Window:AddTab("General")
 local MainBOX = GeneralTab:AddLeftTabbox("Main") do
     local Main = MainBOX:AddTab("Main")
     
-    Main:AddToggle("aim_Enabled", {Text = "Enabled"}):AddKeyPicker("aim_Enabled_KeyPicker", {Default = "RightAlt", SyncToggleState = true, Mode = "Toggle", Text = "Enabled", NoUI = false});
+    Main:AddToggle("aim_Enabled", {Text = "SilentAim"}):AddKeyPicker("aim_Enabled_KeyPicker", {Default = "RightAlt", SyncToggleState = true, Mode = "Toggle", Text = "Enabled", NoUI = false});
     Options.aim_Enabled_KeyPicker:OnClick(function()
         SilentAimSettings.Enabled = not SilentAimSettings.Enabled
         
@@ -346,8 +411,22 @@ local FieldOfViewBOX = GeneralTab:AddLeftTabbox("Field Of View") do
         SilentAimSettings.ShowSilentAimTarget = Toggles.MousePosition.Value 
     end)
 
-    Main:AddToggle("HighlightEnabled", {Text = "Target Highlight", Default = false}):OnChanged(function()
-        SilentAimSettings.ShowHighlight = Toggles.HighlightEnabled.Value
+    Main:AddToggle("HighlightEnabled", {Text = "Highlight Target", Default = false}):OnChanged(function()
+        SilentAimSettings.HighlightEnabled = Toggles.HighlightEnabled.Value
+    end)
+
+    Main:AddToggle("HeadDotEnabled", {Text = "Head Dot", Default = false}):OnChanged(function()
+        SilentAimSettings.HeadDotEnabled = Toggles.HeadDotEnabled.Value
+    
+        if not SilentAimSettings.HeadDotEnabled then
+
+            for _, dot in pairs(cachedHeadDots) do
+                if dot then
+                    dot:Destroy()
+                end
+            end
+            cachedHeadDots = {}
+        end
     end)
     
     local PredictionTab = MiscellaneousBOX:AddTab("Prediction")
@@ -424,11 +503,15 @@ resume(create(function()
             end
         end
         
-        if Toggles.Visible.Value then 
-            fov_circle.Visible = Toggles.Visible.Value
-            fov_circle.Color = Options.Color.Value
-            fov_circle.Position = getMousePosition()
-        end
+        resume(create(function()
+            RenderStepped:Connect(function()
+                if Toggles.Visible.Value then 
+                    fov_circle.Visible = Toggles.Visible.Value
+                    fov_circle.Color = Options.Color.Value
+                    fov_circle.Position = getMousePosition()
+                end
+            end)
+        end))
     end)
 end))
 
