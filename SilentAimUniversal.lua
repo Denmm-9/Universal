@@ -8,7 +8,7 @@ if not syn or not protectgui then
 end
 
 local SilentAimSettings = {
-    SilentAim = false,
+    Enabled = false,
     
     ClassName = "Universal Silent Aim - Averiias, Stefanuk12, xaxa",
     ToggleKey = "RightAlt",
@@ -20,14 +20,11 @@ local SilentAimSettings = {
     
     FOVRadius = 130,
     FOVVisible = false,
-    ShowSilentAimTarget = false, 
+    ShowSilentAimTarget = true, 
     
     MouseHitPrediction = false,
     MouseHitPredictionAmount = 0.165,
-    HitChance = 100,
-    HighlightEnabled = false,
-    HeadDotEnabled = false,
-    
+    HitChance = 100
 }
 
 -- variables
@@ -78,14 +75,6 @@ fov_circle.Visible = false
 fov_circle.ZIndex = 999
 fov_circle.Transparency = 1
 fov_circle.Color = Color3.fromRGB(54, 57, 241)
-
-local Highlight = Instance.new("Highlight")
-Highlight.FillColor = Color3.fromRGB(255, 0, 255) 
-Highlight.OutlineColor = Color3.fromRGB(255, 255, 255) 
-Highlight.FillTransparency = 0.7
-Highlight.OutlineTransparency = 0
-Highlight.Enabled = false
-Highlight.Parent = game.CoreGui
 
 local ExpectedArguments = {
     FindPartOnRayWithIgnoreList = {
@@ -205,152 +194,50 @@ local function getMousePosition()
     return GetMouseLocation(UserInputService)
 end
 
-local function IsPlayerVisible(Character)
-    local PlayerCharacter = Players:GetPlayerFromCharacter(Character) or Character
+local function IsPlayerVisible(Player)
+    local PlayerCharacter = Player.Character
     local LocalPlayerCharacter = LocalPlayer.Character
-
-    if not PlayerCharacter or not LocalPlayerCharacter then return false end
-
-    local PlayerRoot = PlayerCharacter:FindFirstChild("HumanoidRootPart") or PlayerCharacter:FindFirstChild("Head")
-    if not PlayerRoot then return false end
-
-    local CastPoints = {PlayerRoot.Position}
-    local IgnoreList = {LocalPlayerCharacter, PlayerCharacter}
-
+    
+    if not (PlayerCharacter or LocalPlayerCharacter) then return end 
+    
+    local PlayerRoot = FindFirstChild(PlayerCharacter, Options.TargetPart.Value) or FindFirstChild(PlayerCharacter, "HumanoidRootPart")
+    
+    if not PlayerRoot then return end 
+    
+    local CastPoints, IgnoreList = {PlayerRoot.Position, LocalPlayerCharacter, PlayerCharacter}, {LocalPlayerCharacter, PlayerCharacter}
     local ObscuringObjects = #GetPartsObscuringTarget(Camera, CastPoints, IgnoreList)
     
-    return (ObscuringObjects == 0)
+    return ((ObscuringObjects == 0 and true) or (ObscuringObjects > 0 and false))
 end
 
 local function getClosestPlayer()
-    if not SilentAimSettings.Enabled then return nil end 
+    if not Options.TargetPart.Value then return end
+    local Closest
+    local DistanceToMouse
+    for _, Player in next, GetPlayers(Players) do
+        if Player == LocalPlayer then continue end
+        if Toggles.TeamCheck.Value and Player.Team == LocalPlayer.Team then continue end
 
-    local closestTarget = nil
-    local closestDistance = math.huge
-    local cameraPosition = Workspace.CurrentCamera.CFrame.Position
+        local Character = Player.Character
+        if not Character then continue end
+        
+        if Toggles.VisibleCheck.Value and not IsPlayerVisible(Player) then continue end
 
-    for _, character in ipairs(Workspace:GetChildren()) do
-        if character:IsA("Model") and character:FindFirstChildWhichIsA("Humanoid") then
-            local humanoid = character:FindFirstChildWhichIsA("Humanoid")
-            local head = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+        local HumanoidRootPart = FindFirstChild(Character, "HumanoidRootPart")
+        local Humanoid = FindFirstChild(Character, "Humanoid")
+        if not HumanoidRootPart or not Humanoid or Humanoid and Humanoid.Health <= 0 then continue end
 
-            local player = Players:GetPlayerFromCharacter(character)
-            local isPlayer = (player ~= nil)
+        local ScreenPosition, OnScreen = getPositionOnScreen(HumanoidRootPart.Position)
+        if not OnScreen then continue end
 
-            if (not isPlayer or player ~= LocalPlayer) and humanoid.Health > 0 then
-                local screenPosition, onScreen = Workspace.CurrentCamera:WorldToViewportPoint(head.Position)
-                local distance = (head.Position - cameraPosition).Magnitude
-
-                if onScreen and distance < closestDistance and IsPlayerVisible(character) then
-                    closestTarget = head
-                    closestDistance = distance
-                end
-            end
+        local Distance = (getMousePosition() - ScreenPosition).Magnitude
+        if Distance <= (DistanceToMouse or Options.Radius.Value or 2000) then
+            Closest = ((Options.TargetPart.Value == "Random" and Character[ValidTargetParts[math.random(1, #ValidTargetParts)]]) or Character[Options.TargetPart.Value])
+            DistanceToMouse = Distance
         end
     end
-
-    return closestTarget
+    return Closest
 end
-
-local function UpdateHighlight()
-    if not Toggles or not Toggles.HighlightEnabled or Toggles.HighlightEnabled.Value ~= true then
-        Highlight.Enabled = false
-        Highlight.Adornee = nil
-        return
-    end
-
-    local success, ClosestPart = pcall(getClosestPlayer)
-
-    if not success or not ClosestPart or not ClosestPart.Parent or not ClosestPart.Parent:IsDescendantOf(workspace) then
-        Highlight.Enabled = false
-        Highlight.Adornee = nil
-        return
-    end
-
-    local Character = ClosestPart.Parent
-    local TargetPart = Character:FindFirstChild("Head") or Character:FindFirstChild("HumanoidRootPart")
-
-    if not TargetPart then
-        Highlight.Enabled = false
-        Highlight.Adornee = nil
-        return
-    end
-
-    if Character.Parent and not Character:IsDescendantOf(game) then
-        Highlight.Enabled = false
-        Highlight.Adornee = nil
-        return
-    end
-
-    Highlight.Parent = game:GetService("CoreGui") 
-    Highlight.Adornee = Character
-    Highlight.Enabled = true
-end
-
-RenderStepped:Connect(UpdateHighlight)
-
-local cachedHeadDots = {} 
-
-local function applyHeadDot(character)
-    if not character or not SilentAimSettings.HeadDotEnabled then return end
-
-    local head = character:FindFirstChild("Head")
-    local humanoid = character:FindFirstChildWhichIsA("Humanoid") 
-
-    if not head or not humanoid or humanoid.Health <= 0 then
-        return
-    end
-
-    if cachedHeadDots[character] then
-        cachedHeadDots[character]:Destroy()
-        cachedHeadDots[character] = nil
-    end
-
-    local headDot = Instance.new("BillboardGui")
-    headDot.Name = "HeadDot"
-    headDot.Size = UDim2.new(0, 6, 0, 6)
-    headDot.StudsOffset = Vector3.new(0, 0.9, 0)
-    headDot.AlwaysOnTop = true
-    headDot.Adornee = head
-
-    local dot = Instance.new("Frame")
-    dot.Size = UDim2.new(1, 0, 1, 0)
-    dot.BackgroundColor3 = Color3.new(1, 0, 0)
-    dot.BackgroundTransparency = 0.4
-    dot.BorderSizePixel = 0
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(1, 0)
-    corner.Parent = dot
-
-    dot.Parent = headDot
-    headDot.Parent = head
-    cachedHeadDots[character] = headDot
-end
-
-local function clearAllHeadDots()
-    for character, headDot in pairs(cachedHeadDots) do
-        if headDot then
-            headDot:Destroy()
-        end
-    end
-    cachedHeadDots = {}
-end
-
-local function updateAllHeadDots()
-    if not SilentAimSettings.HeadDotEnabled then
-        clearAllHeadDots()
-        return
-    end
-
-    for _, character in ipairs(Workspace:GetChildren()) do
-        if character:IsA("Model") and character:FindFirstChildWhichIsA("Humanoid") and character:FindFirstChild("Head") then
-            applyHeadDot(character)
-        end
-    end
-end
-
-RenderStepped:Connect(updateAllHeadDots)
 
 -- ui creating & handling
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
@@ -361,7 +248,7 @@ local GeneralTab = Window:AddTab("General")
 local MainBOX = GeneralTab:AddLeftTabbox("Main") do
     local Main = MainBOX:AddTab("Main")
     
-    Main:AddToggle("aim_Enabled", {Text = "SilentAim"}):AddKeyPicker("aim_Enabled_KeyPicker", {Default = "RightAlt", SyncToggleState = true, Mode = "Toggle", Text = "Enabled", NoUI = false});
+    Main:AddToggle("aim_Enabled", {Text = "Enabled"}):AddKeyPicker("aim_Enabled_KeyPicker", {Default = "RightAlt", SyncToggleState = true, Mode = "Toggle", Text = "Enabled", NoUI = false});
     Options.aim_Enabled_KeyPicker:OnClick(function()
         SilentAimSettings.Enabled = not SilentAimSettings.Enabled
         
@@ -406,7 +293,7 @@ local MiscellaneousBOX = GeneralTab:AddLeftTabbox("Miscellaneous")
 local FieldOfViewBOX = GeneralTab:AddLeftTabbox("Field Of View") do
     local Main = FieldOfViewBOX:AddTab("Visuals")
     
-    Main:AddToggle("Visible", {Text = "FOV Circle"}):AddColorPicker("Color", {Default = Color3.fromRGB(54, 57, 241)}):OnChanged(function()
+    Main:AddToggle("Visible", {Text = "Show FOV Circle"}):AddColorPicker("Color", {Default = Color3.fromRGB(54, 57, 241)}):OnChanged(function()
         fov_circle.Visible = Toggles.Visible.Value
         SilentAimSettings.FOVVisible = Toggles.Visible.Value
     end)
@@ -414,29 +301,10 @@ local FieldOfViewBOX = GeneralTab:AddLeftTabbox("Field Of View") do
         fov_circle.Radius = Options.Radius.Value
         SilentAimSettings.FOVRadius = Options.Radius.Value
     end)
-    Main:AddToggle("MousePosition", {Text = "Aim Target"}):AddColorPicker("MouseVisualizeColor", {Default = Color3.fromRGB(54, 57, 241)}):OnChanged(function()
+    Main:AddToggle("MousePosition", {Text = "Show Silent Aim Target"}):AddColorPicker("MouseVisualizeColor", {Default = Color3.fromRGB(54, 57, 241)}):OnChanged(function()
         mouse_box.Visible = Toggles.MousePosition.Value 
         SilentAimSettings.ShowSilentAimTarget = Toggles.MousePosition.Value 
     end)
-
-    Main:AddToggle("HighlightEnabled", {Text = "Highlight Target", Default = false}):OnChanged(function()
-        SilentAimSettings.HighlightEnabled = Toggles.HighlightEnabled.Value
-    end)
-
-    Main:AddToggle("HeadDotEnabled", {Text = "Head Dot", Default = false}):OnChanged(function()
-        SilentAimSettings.HeadDotEnabled = Toggles.HeadDotEnabled.Value
-    
-        if not SilentAimSettings.HeadDotEnabled then
-
-            for _, dot in pairs(cachedHeadDots) do
-                if dot then
-                    dot:Destroy()
-                end
-            end
-            cachedHeadDots = {}
-        end
-    end)
-    
     local PredictionTab = MiscellaneousBOX:AddTab("Prediction")
     PredictionTab:AddToggle("Prediction", {Text = "Mouse.Hit/Target Prediction"}):OnChanged(function()
         SilentAimSettings.MouseHitPrediction = Toggles.Prediction.Value
@@ -497,21 +365,20 @@ end
 
 resume(create(function()
     RenderStepped:Connect(function()
-        local closest = getClosestPlayer() 
-
         if Toggles.MousePosition.Value and Toggles.aim_Enabled.Value then
-            if closest then
-                local Root = closest.Parent.PrimaryPart or closest
-                local RootToViewportPoint, IsOnScreen = WorldToViewportPoint(Camera, Root.Position)
-
+            if getClosestPlayer() then 
+                local Root = getClosestPlayer().Parent.PrimaryPart or getClosestPlayer()
+                local RootToViewportPoint, IsOnScreen = WorldToViewportPoint(Camera, Root.Position);
+                -- using PrimaryPart instead because if your Target Part is "Random" it will flicker the square between the Target's Head and HumanoidRootPart (its annoying)
+                
                 mouse_box.Visible = IsOnScreen
                 mouse_box.Position = Vector2.new(RootToViewportPoint.X, RootToViewportPoint.Y)
-            else
-                mouse_box.Visible = false
+            else 
+                mouse_box.Visible = false 
                 mouse_box.Position = Vector2.new()
             end
         end
-
+        
         if Toggles.Visible.Value then 
             fov_circle.Visible = Toggles.Visible.Value
             fov_circle.Color = Options.Color.Value
