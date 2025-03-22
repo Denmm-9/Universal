@@ -205,49 +205,51 @@ local function getMousePosition()
     return GetMouseLocation(UserInputService)
 end
 
-local function IsPlayerVisible(Player)
-    local PlayerCharacter = Player.Character
+local function IsPlayerVisible(Character)
+    local PlayerCharacter = Players:GetPlayerFromCharacter(Character) or Character
     local LocalPlayerCharacter = LocalPlayer.Character
-    
-    if not (PlayerCharacter or LocalPlayerCharacter) then return end 
-    
-    local PlayerRoot = FindFirstChild(PlayerCharacter, Options.TargetPart.Value) or FindFirstChild(PlayerCharacter, "HumanoidRootPart")
-    
-    if not PlayerRoot then return end 
-    
-    local CastPoints, IgnoreList = {PlayerRoot.Position, LocalPlayerCharacter, PlayerCharacter}, {LocalPlayerCharacter, PlayerCharacter}
+
+    if not PlayerCharacter or not LocalPlayerCharacter then return false end
+
+    local PlayerRoot = PlayerCharacter:FindFirstChild("HumanoidRootPart") or PlayerCharacter:FindFirstChild("Head")
+    if not PlayerRoot then return false end
+
+    local CastPoints = {PlayerRoot.Position}
+    local IgnoreList = {LocalPlayerCharacter, PlayerCharacter}
+
     local ObscuringObjects = #GetPartsObscuringTarget(Camera, CastPoints, IgnoreList)
     
-    return ((ObscuringObjects == 0 and true) or (ObscuringObjects > 0 and false))
+    return (ObscuringObjects == 0)
 end
 
 local function getClosestPlayer()
-    if not Options.TargetPart.Value then return end
-    local Closest
-    local DistanceToMouse
-    for _, Player in next, GetPlayers(Players) do
-        if Player == LocalPlayer then continue end
-        if Toggles.TeamCheck.Value and Player.Team == LocalPlayer.Team then continue end
+    if not SilentAimSettings.Enabled then return nil end 
 
-        local Character = Player.Character
-        if not Character then continue end
-        
-        if Toggles.VisibleCheck.Value and not IsPlayerVisible(Player) then continue end
+    local closestTarget = nil
+    local closestDistance = math.huge
+    local cameraPosition = Workspace.CurrentCamera.CFrame.Position
 
-        local HumanoidRootPart = FindFirstChild(Character, "HumanoidRootPart")
-        local Humanoid = FindFirstChild(Character, "Humanoid")
-        if not HumanoidRootPart or not Humanoid or Humanoid and Humanoid.Health <= 0 then continue end
+    for _, character in ipairs(Workspace:GetChildren()) do
+        if character:IsA("Model") and character:FindFirstChildWhichIsA("Humanoid") then
+            local humanoid = character:FindFirstChildWhichIsA("Humanoid")
+            local head = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
 
-        local ScreenPosition, OnScreen = getPositionOnScreen(HumanoidRootPart.Position)
-        if not OnScreen then continue end
+            local player = Players:GetPlayerFromCharacter(character)
+            local isPlayer = (player ~= nil)
 
-        local Distance = (getMousePosition() - ScreenPosition).Magnitude
-        if Distance <= (DistanceToMouse or Options.Radius.Value or 2000) then
-            Closest = ((Options.TargetPart.Value == "Random" and Character[ValidTargetParts[math.random(1, #ValidTargetParts)]]) or Character[Options.TargetPart.Value])
-            DistanceToMouse = Distance
+            if (not isPlayer or player ~= LocalPlayer) and humanoid.Health > 0 then
+                local screenPosition, onScreen = Workspace.CurrentCamera:WorldToViewportPoint(head.Position)
+                local distance = (head.Position - cameraPosition).Magnitude
+
+                if onScreen and distance < closestDistance and IsPlayerVisible(character) then
+                    closestTarget = head
+                    closestDistance = distance
+                end
+            end
         end
     end
-    return Closest
+
+    return closestTarget
 end
 
 local function UpdateHighlight()
@@ -280,7 +282,7 @@ local function UpdateHighlight()
         return
     end
 
-    Highlight.Parent = game:GetService("CoreGui")
+    Highlight.Parent = game:GetService("CoreGui") 
     Highlight.Adornee = Character
     Highlight.Enabled = true
 end
@@ -290,56 +292,49 @@ RenderStepped:Connect(UpdateHighlight)
 local cachedHeadDots = {} 
 
 local function applyHeadDot(character)
-    if not character or not SilentAimSettings.HeadDotEnabled then
-        return
-    end
+    if not character or not SilentAimSettings.HeadDotEnabled then return end
 
-    local targetPlayer = Players:GetPlayerFromCharacter(character)
     local head = character:FindFirstChild("Head")
-    local humanoid = character:FindFirstChild("Humanoid") 
+    local humanoid = character:FindFirstChildWhichIsA("Humanoid") 
 
     if not head or not humanoid or humanoid.Health <= 0 then
         return
     end
 
-    if character == LocalPlayer.Character or head:FindFirstChild("HeadDot") then
-        return
+    if cachedHeadDots[character] then
+        cachedHeadDots[character]:Destroy()
+        cachedHeadDots[character] = nil
     end
 
-    if not cachedHeadDots[character] then
-        local headDot = Instance.new("BillboardGui")
-        headDot.Name = "HeadDot"
-        headDot.Size = UDim2.new(0, 6, 0, 6)
-        headDot.StudsOffset = Vector3.new(0, 0.9, 0)
-        headDot.AlwaysOnTop = true
-        headDot.Adornee = head
+    local headDot = Instance.new("BillboardGui")
+    headDot.Name = "HeadDot"
+    headDot.Size = UDim2.new(0, 6, 0, 6)
+    headDot.StudsOffset = Vector3.new(0, 0.9, 0)
+    headDot.AlwaysOnTop = true
+    headDot.Adornee = head
 
-        local dot = Instance.new("Frame")
-        dot.Size = UDim2.new(1, 0, 1, 0)
-        dot.BackgroundColor3 = Color3.new(1, 0, 0)
-        dot.BackgroundTransparency = 0.4
-        dot.BorderSizePixel = 0
+    local dot = Instance.new("Frame")
+    dot.Size = UDim2.new(1, 0, 1, 0)
+    dot.BackgroundColor3 = Color3.new(1, 0, 0)
+    dot.BackgroundTransparency = 0.4
+    dot.BorderSizePixel = 0
 
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(1, 0)
-        corner.Parent = dot
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = dot
 
-        dot.Parent = headDot
-        headDot.Parent = head
-        cachedHeadDots[character] = headDot
-    end
+    dot.Parent = headDot
+    headDot.Parent = head
+    cachedHeadDots[character] = headDot
 end
 
 local function clearAllHeadDots()
-    if next(cachedHeadDots) == nil then return end 
-
     for character, headDot in pairs(cachedHeadDots) do
         if headDot then
             headDot:Destroy()
         end
     end
-
-    cachedHeadDots = {} 
+    cachedHeadDots = {}
 end
 
 local function updateAllHeadDots()
@@ -348,19 +343,8 @@ local function updateAllHeadDots()
         return
     end
 
-    for _, player in ipairs(Players:GetPlayers()) do
-        local character = player.Character
-        if character then
-            local humanoid = character:FindFirstChild("Humanoid")
-			
-            if not humanoid or humanoid.Health <= 0 then
-                if cachedHeadDots[character] then
-                    cachedHeadDots[character]:Destroy()
-                    cachedHeadDots[character] = nil
-                end
-                continue
-            end
-
+    for _, character in ipairs(Workspace:GetChildren()) do
+        if character:IsA("Model") and character:FindFirstChildWhichIsA("Humanoid") and character:FindFirstChild("Head") then
             applyHeadDot(character)
         end
     end
