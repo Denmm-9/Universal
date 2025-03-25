@@ -116,7 +116,6 @@ function CalculateChance(Percentage)
     return chance <= Percentage / 100
 end
 
-
 --[[file handling]] do 
     if not isfolder(MainFileName) then 
         makefolder(MainFileName);
@@ -130,12 +129,11 @@ end
 local Files = listfiles(string.format("%s/%s", "UniversalSilentAim", tostring(game.PlaceId)))
 
 -- functions
-local function GetFiles() -- credits to the linoria lib for this function, listfiles returns the files full path and its annoying
+local function GetFiles() 
 	local out = {}
 	for i = 1, #Files do
 		local file = Files[i]
 		if file:sub(-4) == '.lua' then
-			-- i hate this but it has to be done ...
 
 			local pos = file:find('.lua', 1, true)
 			local start = pos
@@ -247,7 +245,7 @@ Highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
 Highlight.FillTransparency = 0.7
 Highlight.OutlineTransparency = 0
 Highlight.Parent = game.CoreGui 
-Highlight.Enabled = false
+Highlight.Enabled = false 
 
 local cachedHeadDots = {}
 
@@ -257,14 +255,22 @@ local function applyHeadDot(character)
     local head = character:FindFirstChild("Head")
     local humanoid = character:FindFirstChild("Humanoid")
 
-    if not head or not humanoid or humanoid.Health <= 0 then return end
+    if not head or not humanoid or humanoid.Health <= 0 then 
+
+        if cachedHeadDots[character] then
+            cachedHeadDots[character]:Destroy()
+            cachedHeadDots[character] = nil
+        end
+        return 
+    end
+
     if character == LocalPlayer.Character or head:FindFirstChild("HeadDot") then return end
 
     if not cachedHeadDots[character] then
         local headDot = Instance.new("BillboardGui")
         headDot.Name = "HeadDot"
         headDot.Size = UDim2.new(0, 6, 0, 6)
-        headDot.StudsOffset = Vector3.new(0, 0.9, 0)
+        headDot.StudsOffset = Vector3.new(0, 0.7, 0)
         headDot.AlwaysOnTop = true
         headDot.Adornee = head
 
@@ -274,7 +280,7 @@ local function applyHeadDot(character)
         if Player and Player.Team then
             dot.BackgroundColor3 = Player.Team.TeamColor.Color
         else
-            dot.BackgroundColor3 = Color3.fromRGB(255, 0, 0) 
+            dot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         end
         
         dot.BackgroundTransparency = 0.4
@@ -290,6 +296,13 @@ local function applyHeadDot(character)
 
         humanoid.Died:Connect(function()
             if cachedHeadDots[character] then
+                cachedHeadDots[character]:Destroy()
+                cachedHeadDots[character] = nil
+            end
+        end)
+
+        humanoid.HealthChanged:Connect(function(health)
+            if health <= 0 and cachedHeadDots[character] then
                 cachedHeadDots[character]:Destroy()
                 cachedHeadDots[character] = nil
             end
@@ -328,12 +341,19 @@ end)
 
 local function UpdateHighlight()
     if not SilentAimSettings.HighlightEnabled then
-        Highlight.Enabled = false
-        Highlight.Adornee = nil
+        if Highlight then
+            Highlight.Enabled = false
+            Highlight.Adornee = nil
+        end
         return
     end
 
-    local target = getClosestPlayer()
+    if not Highlight or not Highlight.Parent then
+        Highlight = Instance.new("Highlight")
+        Highlight.Parent = game.CoreGui  
+    end
+
+    local target = getClosestPlayer()  
     if not target or not target.Parent then
         Highlight.Enabled = false
         Highlight.Adornee = nil
@@ -349,15 +369,13 @@ local function UpdateHighlight()
         return
     end
 
-    Highlight.Parent = Character
+    Highlight.Parent = game.CoreGui 
     Highlight.Adornee = Character
     Highlight.Enabled = true
 end
 
 RunService.RenderStepped:Connect(updateAllHeadDots)
 RunService.RenderStepped:Connect(UpdateHighlight)
-
-
 
 -- ui creating & handling
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
