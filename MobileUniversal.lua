@@ -34,13 +34,26 @@ local ESPEnabled = false
 local TeamCheckEnabled = false
 
 -- VALIDACIONES 
-local function isValidTarget(player)
-    if not player.Character or not player.Character:FindFirstChild("Humanoid") or player.Character.Humanoid.Health <= 0 then
+local function isValidTarget(player, character)
+    if not player or not character then
         return false
     end
 
-    if TeamCheckEnabled and player.Team == LocalPlayer.Team then
-        return false 
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then
+        return false
+    end
+
+    if showAllModeEnabled then
+        return true
+    end
+
+    if teamModeEnabled then
+        if player.Team and LocalPlayer.Team then
+            return player.Team ~= LocalPlayer.Team
+        else
+            return false
+        end
     end
 
     return true
