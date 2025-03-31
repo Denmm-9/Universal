@@ -1,4 +1,4 @@
--- SIMPLE SOURCE 
+-- SIMPLE AND BASIC SOURCE --
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
@@ -9,6 +9,7 @@ local Options = Library.Options
 Library.ForceCheckbox = false
 Library.ShowToggleFrameInKeybinds = true 
 
+-- Create the main UI
 local Window = Library:CreateWindow({
     Title = "Mounx",
     Footer = "..",
@@ -99,7 +100,6 @@ local function updateAimbot()
         local shortestDistance = math.huge
         local screenCenter = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y / 2)
 
-
         for _, player in pairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(TargetPart) then
                 local targetPart = player.Character:FindFirstChild(TargetPart)
@@ -189,11 +189,13 @@ local function updateBox(player)
         local distance = (rootPart.Position - Camera.CFrame.Position).Magnitude 
 
         if OnScreen then
-            local baseSizeX, baseSizeY = 70, 80
+            local baseSizeX, baseSizeY = 40, 60
             local scaleFactor = math.clamp(1 / (distance / 30), 0.1, 2.8) 
 
             local sizeX, sizeY = baseSizeX * scaleFactor, baseSizeY * scaleFactor
             local posX, posY = Vector.X - sizeX / 2, Vector.Y - sizeY / 2.3
+
+            posX = posX + 41  
 
             Box.Background.Size = Vector2.new(sizeX, sizeY)
             Box.Background.Position = Vector2.new(posX, posY)
@@ -522,11 +524,9 @@ MenuGroup:AddLabel("Menu bind")
         ESPBoxes = {}
     
         DrawingFOV.Visible = false
-    
-        Library:Notify("Script Unloaded Successfully", 3)
 
+        Library:Notify("Script Unloaded Successfully", 3)
         task.wait(0.5)
-    
         Library:Unload()
     end
     
