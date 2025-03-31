@@ -1,14 +1,33 @@
--- OPEN SOURCE HELP WITH AI --
-local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/Arceus-X-UI-Library/main/source.lua"))()
-lib:SetTitle("Xerereca")
-lib:SetIcon("http://www.roblox.com/asset/?id=9178187770")
-lib:SetTheme("Aqua")
+-- SIMPLE SOURCE 
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Options = Library.Options
+
+Library.ForceCheckbox = false
+Library.ShowToggleFrameInKeybinds = true 
+
+local Window = Library:CreateWindow({
+    Title = "Mounx",
+    Footer = "..",
+    NotifySide = "Right",
+    ShowCustomCursor = true,
+})
+
+local MainTab = Window:AddTab("Main", "user")
+local SettingsTab = Window:AddTab("Config", "settings")
+
+local HitboxGroup = MainTab:AddLeftGroupbox("Hitbox ")
+local AimbotGroup = MainTab:AddRightGroupbox("Aimbot")
+local MiscGroup = MainTab:AddLeftGroupbox("Visuals")
+local ChecksGroup = MainTab:AddRightGroupbox("Checks")
 
 -- SERVICES
 local Players = game:GetService("Players")  
 local Camera = workspace.CurrentCamera 
 local RunService = game:GetService("RunService") 
-local UserInputService = game:GetService("UserInputService")  
 local LocalPlayer = Players.LocalPlayer 
 local CurrentCamera = game:GetService("Workspace").CurrentCamera
 
@@ -21,7 +40,7 @@ local WallhackEnabled = false
 local AimbotEnabled = false
 local TargetPart = "Head"
 local CurrentTarget = nil
-local FOVSize = 50
+local FOVSize = 100
 local FOVVisible = false
 local FOVColor = Color3.new(1, 1, 1) 
 local DrawingFOV = Drawing.new("Circle")
@@ -38,71 +57,64 @@ local function isValidTarget(player, character)
     if not player or not character then
         return false
     end
-
+    
     local humanoid = character:FindFirstChild("Humanoid")
     if not humanoid or humanoid.Health <= 0 then
         return false
     end
-
-    if showAllModeEnabled then
-        return true
-    end
-
-    if teamModeEnabled then
+    
+    if TeamCheckEnabled then
         if player.Team and LocalPlayer.Team then
             return player.Team ~= LocalPlayer.Team
         else
             return false
         end
     end
-
+    
     return true
 end
 
 local function isVisible(position, character)
     if not WallhackEnabled then
-        return true 
+        return true
     end
     
     local excludeParts = {workspace.CurrentCamera, character}
-    for _, player in pairs(game.Players:GetPlayers()) do
+    for _, player in pairs(Players:GetPlayers()) do
         if player.Character then
-            table.insert(excludeParts, player.Character)  
+            table.insert(excludeParts, player.Character)
             local head = player.Character:FindFirstChild("Head")
             if head then
-                table.insert(excludeParts, head)  
+                table.insert(excludeParts, head)
             end
         end
     end
-
+    
     return #workspace.CurrentCamera:GetPartsObscuringTarget({position}, excludeParts) == 0
 end
 
--- AIMBOT
 local function updateAimbot()
     if AimbotEnabled then
         local closestPlayer = nil
         local shortestDistance = math.huge
-        local mousePos = UserInputService:GetMouseLocation()
-        local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        local screenCenter = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y / 2)
+
 
         for _, player in pairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(TargetPart) then
                 local targetPart = player.Character:FindFirstChild(TargetPart)
 
-                if isValidTarget(player) then
+                if isValidTarget(player, player.Character) then
                     local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-
                     if onScreen then
                         local distanceFromCenter = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
                         local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude
 
-                        if distanceFromCenter <= DrawingFOV.Radius then
-   
+                        if distanceFromCenter <= FOVSize then
                             if WallhackEnabled and not isVisible(targetPart.Position, player.Character) then
                                 continue
                             end
-
+                            
                             if distance < shortestDistance then
                                 closestPlayer = targetPart
                                 shortestDistance = distance
@@ -112,13 +124,19 @@ local function updateAimbot()
                 end
             end
         end
-
+        
         if closestPlayer then
+            CurrentTarget = closestPlayer
             local aimPosition = closestPlayer.Position
             Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPosition)
+        else
+            CurrentTarget = nil
         end
+    else
+        CurrentTarget = nil
     end
 end
+
 RunService.RenderStepped:Connect(updateAimbot)
 
 -- BOX
@@ -231,7 +249,6 @@ local function createChams(player)
     end
 end
 
-
 local function updateChams(player)
     local highlight = Chams[player]
     local character = player.Character
@@ -301,111 +318,117 @@ local function updateHitboxesForAllCharacters()
 end
 game:GetService("RunService").Heartbeat:Connect(updateHitboxesForAllCharacters)
 
--- SCREEN GUI
-local function createToggleButton()
-    local ScreenGui = Instance.new("ScreenGui")
-    local ToggleButton = Instance.new("TextButton")
-    ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    
-    ToggleButton.Size = UDim2.new(0, 250, 0, 60)  
-    ToggleButton.Position = UDim2.new(0, 10, 0, 10)  
-    ToggleButton.Text = "AIMBOT" 
-    ToggleButton.Parent = ScreenGui
-    ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)  
-    
-    ToggleButton.TextSize = 30  
-    
-    ToggleButton.MouseButton1Click:Connect(function()
-        AimbotEnabled = not AimbotEnabled
-        if AimbotEnabled then
-            ToggleButton.Text = "OFF"  
-            ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)  
+AimbotGroup:AddToggle("Aimbot", {
+    Text = "Aimbot",
+    Default = false,
+    Callback = function(state)
+        AimbotEnabled = state
+        if not state then
+            CurrentTarget = nil
+        end
+    end
+})
+
+AimbotGroup:AddToggle("FOV", {
+    Text = "FOV Circle",
+    Default = false,
+    Callback = function(state)
+        FOVVisible = state
+    end
+})
+
+AimbotGroup:AddSlider("FOVSize", {
+    Text = "FOV Size",
+    Default = 100,
+    Min = 50,
+    Max = 500,
+    Rounding = 0,
+    Callback = function(value)
+        FOVSize = value
+    end
+})
+
+HitboxGroup:AddToggle("Hitbox", {
+    Text = "Hitbox",
+    Default = false,
+    Callback = function(state)
+        hitboxActive = state
+    end
+})
+
+HitboxGroup:AddSlider("HitboxSize", {
+    Text = "Hitbox Size",
+    Default = 4,
+    Min = 1,
+    Max = 10,
+    Rounding = 0,
+    Callback = function(value)
+        activeHeadSize = Vector3.new(value, value, value)
+    end
+})
+
+HitboxGroup:AddSlider("HitboxTransparency", {
+    Text = "Hitbox Transparency",
+    Default = 0.5,
+    Min = 0,
+    Max = 1,
+    Rounding = 1,
+    Callback = function(value)
+        hitboxTransparency = value
+    end
+})
+
+MiscGroup:AddToggle("Boxes", {
+    Text = "Boxes",
+    Default = false,
+    Callback = function(state)
+        ESPEnabled = state
+        if not state then
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer then
+                    removeBox(player)
+                end
+            end
         else
-            ToggleButton.Text = "ON"  
-            ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)  
-            CurrentTarget = nil  
-        end
-    end)
-end
-game.Players.LocalPlayer.CharacterAdded:Connect(function()
-    createToggleButton()  
-end)
-createToggleButton()
-
--- MENU
-lib:AddToggle("Aimbot", function(state)
-    AimbotEnabled = state
-    if not state then
-        CurrentTarget = nil
-    end
-end)
-
-lib:AddToggle("FOV", function(state)
-    FOVVisible = state
-end)
-
-lib:AddComboBox("Tamaño FOV", {"50", "100", "150", "200", "250"}, function(selection)
-    FOVSize = tonumber(selection)
-end)
-
-lib:AddToggle("Hitbox", function(state)
-    hitboxActive = state
-end)
-
-lib:AddComboBox("Hitbox Size", {"1", "2", "3", "4", "5"}, function(selection)
-    if selection == "2" then
-        activeHeadSize = Vector3.new(2, 2, 2)  
-    elseif selection == "3" then
-        activeHeadSize = Vector3.new(3, 3, 3)  
-    elseif selection == "1" then
-        activeHeadSize = Vector3.new(1, 1, 1)  
-    elseif selection == "4" then
-        activeHeadSize = Vector3.new(4, 4, 4) 
-    elseif selection == "5" then
-        activeHeadSize = Vector3.new(5, 5, 5)  
-    end
-end)
-
-lib:AddComboBox("Hitbox Transparency", {"0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1"}, function(selection)
-    hitboxTransparency = tonumber(selection) or 0.5  
-end)
-
-lib:AddToggle("Boxes", function(state)
-    ESPEnabled = state
-    if not state then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                removeBox(player)
-            end
-        end
-    else
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                createBox(player)
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer then
+                    createBox(player)
+                end
             end
         end
     end
-end)
+})
 
-lib:AddToggle("Chams", function(state)
-    ChamsActive = state
-    if not state then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                removeChams(player)
+MiscGroup:AddToggle("Chams", {
+    Text = "Chams",
+    Default = false,
+    Callback = function(state)
+        ChamsActive = state
+        if not state then
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer then
+                    removeChams(player)
+                end
             end
         end
     end
-end)
+})
 
-lib:AddToggle("Wallhack", function(state)
-    WallhackEnabled = state 
-end)
+ChecksGroup:AddToggle("Wallhack", {
+    Text = "Wallhack",
+    Default = false,
+    Callback = function(state)
+        WallhackEnabled = state
+    end
+})
 
-
-lib:AddToggle("TeamCheck", function(state)
-    TeamCheckEnabled = state
-end)
+ChecksGroup:AddToggle("TeamCheck", {
+    Text = "TeamCheck",
+    Default = false,
+    Callback = function(state)
+        TeamCheckEnabled = state
+    end
+})
 
 Players.PlayerAdded:Connect(function(player)
     if ESPEnabled then createBox(player) end
@@ -434,3 +457,94 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
+
+local MenuGroup = SettingsTab:AddLeftGroupbox("Menu")
+
+MenuGroup:AddToggle("KeybindMenuOpen", {
+	Default = Library.KeybindFrame.Visible,
+	Text = "Open Keybind Menu",
+	Callback = function(value)
+		Library.KeybindFrame.Visible = value
+	end,
+})
+MenuGroup:AddToggle("ShowCustomCursor", {
+	Text = "Custom Cursor",
+	Default = true,
+	Callback = function(Value)
+		Library.ShowCustomCursor = Value
+	end,
+})
+MenuGroup:AddDropdown("NotificationSide", {
+	Values = { "Left", "Right" },
+	Default = "Right",
+	Text = "Notification Side",
+	Callback = function(Value)
+		Library:SetNotifySide(Value)
+	end,
+})
+MenuGroup:AddDropdown("DPIDropdown", {
+	Values = { "50%", "75%", "100%", "125%", "150%", "175%", "200%" },
+	Default = "100%",
+	Text = "DPI Scale",
+	Callback = function(Value)
+		Value = Value:gsub("%%", "")
+		local DPI = tonumber(Value)
+		Library:SetDPIScale(DPI)
+	end,
+})
+
+MenuGroup:AddDivider()
+MenuGroup:AddLabel("Menu bind")
+	:AddKeyPicker("MenuKeybind", { Default = "Delete", NoUI = true, Text = "Menu keybind" })
+
+    local function UnloadScript()
+
+        hitboxActive = false
+        AimbotEnabled = false
+        FOVVisible = false
+        ESPEnabled = false
+        ChamsActive = false
+        
+        for _, player in pairs(Players:GetPlayers()) do
+            removeChams(player)
+        end
+        Chams = {}
+    
+        for _, Box in pairs(ESPBoxes) do
+            if Box then
+                for _, line in pairs(Box) do
+                    if line.Remove then
+                        line:Remove()
+                    end
+                end
+            end
+        end
+        ESPBoxes = {}
+    
+        DrawingFOV.Visible = false
+    
+        Library:Notify("Script Unloaded Successfully", 3)
+
+        task.wait(0.5)
+    
+        Library:Unload()
+    end
+    
+    MenuGroup:AddButton("Unload", function()
+        UnloadScript()
+    end)
+    
+Library.ToggleKeybind = Options.MenuKeybind 
+
+Options.MenuKeybind:OnChanged(function()
+    Library:Notify('Menu toggle key changed to [' .. Options.MenuKeybind.Value .. ']')
+end)
+
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+
+SaveManager:BuildConfigSection(SettingsTab)
+ThemeManager:ApplyToTab(SettingsTab)
+
+SaveManager:LoadAutoloadConfig()
+Library:Notify("Script Loaded Successfully", 5)
