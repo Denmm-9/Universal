@@ -3,14 +3,20 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
-if not syn or not protectgui then
-    getgenv().protectgui = function() end
-end
+pcall(function()
+    if syn and protectgui then
+        protectgui(Library)
+    elseif gethui then
+        Library.Parent = gethui()
+    else
+        Library.Parent = game:GetService("CoreGui")
+    end
+end)
 
 local SilentAimSettings = {
     Enabled = false,
     
-    ClassName = "Universal Silent Aim - Averiias, Stefanuk12, xaxa",
+    ClassName = "Universal Silent Aim",
     ToggleKey = "RightAlt",
     
     TeamCheck = false,
@@ -30,9 +36,14 @@ local SilentAimSettings = {
 }
 
 -- variables
-getgenv().SilentAimSettings = Settings
+getgenv().SilentAimSettings = SilentAimSettings
+
 local MainFileName = "UniversalSilentAim"
 local SelectedFile, FileToSave = "", ""
+
+
+local CurrentTarget = nil
+local CurrentTargetPlayer = nil
 
 local Camera = workspace.CurrentCamera
 local Players = game:GetService("Players")
@@ -59,6 +70,19 @@ local create = coroutine.create
 
 local ValidTargetParts = {"Head", "HumanoidRootPart"}
 local PredictionAmount = 0.165
+
+local VisibleCheckParts = {
+    "Head",
+    "LeftHand",
+    "RightHand",
+    "LeftFoot",
+    "RightFoot",
+    "HumanoidRootPart",
+    "LeftLowerArm",
+    "RightLowerArm",
+    "LeftLowerLeg",
+    "RightLowerLeg"
+}
 
 local mouse_box = Drawing.new("Circle") 
 mouse_box.Visible = true 
@@ -214,6 +238,7 @@ local function getClosestPlayer()
     if not Options.TargetPart.Value then return end
     local Closest
     local DistanceToMouse
+
     for _, Player in next, GetPlayers(Players) do
         if Player == LocalPlayer then continue end
         if Toggles.TeamCheck.Value and Player.Team == LocalPlayer.Team then continue end
@@ -225,19 +250,45 @@ local function getClosestPlayer()
 
         local HumanoidRootPart = FindFirstChild(Character, "HumanoidRootPart")
         local Humanoid = FindFirstChild(Character, "Humanoid")
-        if not HumanoidRootPart or not Humanoid or Humanoid and Humanoid.Health <= 0 then continue end
+        if not HumanoidRootPart or not Humanoid or (Humanoid and Humanoid.Health <= 0) then continue end
 
         local ScreenPosition, OnScreen = getPositionOnScreen(HumanoidRootPart.Position)
         if not OnScreen then continue end
 
         local Distance = (getMousePosition() - ScreenPosition).Magnitude
         if Distance <= (DistanceToMouse or Options.Radius.Value or 2000) then
-            Closest = ((Options.TargetPart.Value == "Random" and Character[ValidTargetParts[math.random(1, #ValidTargetParts)]]) or Character[Options.TargetPart.Value])
+            Closest = (Options.TargetPart.Value == "Random" and Character[ValidTargetParts[math.random(1, #ValidTargetParts)]]) or Character[Options.TargetPart.Value]
             DistanceToMouse = Distance
         end
     end
+
     return Closest
 end
+
+
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local LastClick = 0
+local ClickDelay = 0.05 -- 20 disparos por segundo
+
+RunService.RenderStepped:Connect(function()
+    if not Toggles.AutoShoot.Value or not Toggles.aim_Enabled.Value then return end
+
+    local targetPart = getClosestPlayer()
+    if targetPart then
+        local targetPlayer = Players:GetPlayerFromCharacter(targetPart.Parent)
+        
+        -- AutoShoot solo dispara si el target es visible, independientemente de toggle VisibleCheck
+        if IsPlayerVisible(targetPlayer) then
+            if tick() - LastClick >= ClickDelay then
+                local mousePos = UserInputService:GetMouseLocation()
+                VirtualInputManager:SendMouseButtonEvent(mousePos.X, mousePos.Y, 0, true, game, 0)
+                VirtualInputManager:SendMouseButtonEvent(mousePos.X, mousePos.Y, 0, false, game, 0)
+                LastClick = tick()
+            end
+        end
+    end
+end)
+
 
 local Highlight = Instance.new("Highlight")
 Highlight.FillColor = Color3.fromRGB(255, 0, 255) 
@@ -395,7 +446,11 @@ local MainBOX = GeneralTab:AddLeftTabbox("Main") do
         
         mouse_box.Visible = SilentAimSettings.Enabled
     end)
-    
+
+    Main:AddToggle("AutoShoot", {Text = "TriggerbotVisible", Default = SilentAimSettings.AutoShoot or false}):OnChanged(function()
+    SilentAimSettings.AutoShoot = Toggles.AutoShoot.Value
+end)
+
     Main:AddToggle("TeamCheck", {Text = "Team Check", Default = SilentAimSettings.TeamCheck}):OnChanged(function()
         SilentAimSettings.TeamCheck = Toggles.TeamCheck.Value
     end)
@@ -519,6 +574,8 @@ local LoadConfigurationBOX = GeneralTab:AddRightTabbox("Load Configuration") do
             Toggles.Prediction:SetValue(SilentAimSettings.MouseHitPrediction)
             Options.Amount:SetValue(SilentAimSettings.MouseHitPredictionAmount)
             Options.HitChance:SetValue(SilentAimSettings.HitChance)
+            Toggles.AutoShoot:SetValue(SilentAimSettings.AutoShoot)
+
         end
     end)
 end
