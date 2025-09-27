@@ -68,21 +68,10 @@ local GetMouseLocation = UserInputService.GetMouseLocation
 local resume = coroutine.resume 
 local create = coroutine.create
 
-local ValidTargetParts = {"Head", "HumanoidRootPart"}
-local PredictionAmount = 0.165
+local ValidTargetParts = {"Head", "LeftHand", "RightHand", "LeftFoot", "RightFoot", "LeftLowerArm", "RightLowerArm", "LeftLowerLeg", "RightLowerLeg"}
 
-local VisibleCheckParts = {
-    "Head",
-    "LeftHand",
-    "RightHand",
-    "LeftFoot",
-    "RightFoot",
-    "HumanoidRootPart",
-    "LeftLowerArm",
-    "RightLowerArm",
-    "LeftLowerLeg",
-    "RightLowerLeg"
-}
+
+local PredictionAmount = 0.165
 
 local mouse_box = Drawing.new("Circle") 
 mouse_box.Visible = true 
@@ -234,10 +223,60 @@ local function IsPlayerVisible(Player)
     return ((ObscuringObjects == 0 and true) or (ObscuringObjects > 0 and false))
 end
 
+local function GetClosestPointOnPartToMouse(part, mousePos)
+    local size = part.Size / 2
+    local cf = part.CFrame
+
+    -- Porcentaje para acercarse a la esquina sin llegar al extremo total
+    local cornerOffsetFactor = 0.5
+
+    local offsets = {
+        Vector3.new( size.X * cornerOffsetFactor,  size.Y * 2,  size.Z * cornerOffsetFactor),
+        Vector3.new( size.X * cornerOffsetFactor,  size.Y * cornerOffsetFactor, -size.Z * cornerOffsetFactor),
+        Vector3.new( size.X * cornerOffsetFactor, -size.Y * cornerOffsetFactor,  size.Z * cornerOffsetFactor),
+        Vector3.new( size.X * cornerOffsetFactor, -size.Y * cornerOffsetFactor, -size.Z * cornerOffsetFactor),
+        Vector3.new(-size.X * cornerOffsetFactor,  size.Y * cornerOffsetFactor,  size.Z * cornerOffsetFactor),
+        Vector3.new(-size.X * cornerOffsetFactor,  size.Y * cornerOffsetFactor, -size.Z * cornerOffsetFactor),
+        Vector3.new(-size.X * cornerOffsetFactor, -size.Y * cornerOffsetFactor,  size.Z * cornerOffsetFactor),
+        Vector3.new(-size.X * cornerOffsetFactor, -size.Y * cornerOffsetFactor, -size.Z * cornerOffsetFactor),
+    }
+
+    local closestPoint = nil
+    local closestDist = math.huge
+
+    -- Referencia vertical (altura) para filtrar puntos alejados verticalmente
+    local referenceY = part.Position.Y
+    local verticalTolerance = 2 -- studs, ajusta según lo que prefieras
+
+    for _, offset in ipairs(offsets) do
+        local worldPoint = (cf * CFrame.new(offset)).p
+        -- Filtrar puntos con diferencia vertical aceptable
+        if math.abs(worldPoint.Y - referenceY) <= verticalTolerance then
+            local screenPoint, onScreen = getPositionOnScreen(worldPoint)
+            if onScreen then
+                local dist = (mousePos - screenPoint).Magnitude
+                if dist < closestDist then
+                    closestDist = dist
+                    closestPoint = worldPoint
+                end
+            end
+        end
+    end
+
+    return closestPoint or part.Position
+end
+
+
+
 local function getClosestPlayer()
     if not Options.TargetPart.Value then return end
-    local Closest
-    local DistanceToMouse
+
+    local ClosestPart = nil
+    local ClosestPoint = nil
+    local DistanceToMouse = nil
+
+    local mousePos = getMousePosition() -- tu función que obtiene la posición del mouse en pantalla
+    local maxRadius = Options.Radius.Value or 2000
 
     for _, Player in next, GetPlayers(Players) do
         if Player == LocalPlayer then continue end
@@ -252,18 +291,51 @@ local function getClosestPlayer()
         local Humanoid = FindFirstChild(Character, "Humanoid")
         if not HumanoidRootPart or not Humanoid or (Humanoid and Humanoid.Health <= 0) then continue end
 
-        local ScreenPosition, OnScreen = getPositionOnScreen(HumanoidRootPart.Position)
-        if not OnScreen then continue end
+        local partsToCheck = {}
 
-        local Distance = (getMousePosition() - ScreenPosition).Magnitude
-        if Distance <= (DistanceToMouse or Options.Radius.Value or 2000) then
-            Closest = (Options.TargetPart.Value == "Random" and Character[ValidTargetParts[math.random(1, #ValidTargetParts)]]) or Character[Options.TargetPart.Value]
-            DistanceToMouse = Distance
+        if Options.TargetPart.Value == "ClosestToMouse" then
+            for _, partName in ipairs(ValidTargetParts) do
+                local part = FindFirstChild(Character, partName)
+                if part then
+                    table.insert(partsToCheck, part)
+                end
+            end
+        else
+            local part = (Options.TargetPart.Value == "Random" and Character[ValidTargetParts[math.random(1, #ValidTargetParts)]]) or Character[Options.TargetPart.Value]
+            if part then
+                table.insert(partsToCheck, part)
+            end
+        end
+
+        for _, part in ipairs(partsToCheck) do
+            local targetPoint
+
+            if Options.TargetPart.Value == "ClosestToMouse" then
+                targetPoint = GetClosestPointOnPartToMouse(part, mousePos)
+            else
+                targetPoint = part.Position
+            end
+
+            local ScreenPosition, OnScreen = getPositionOnScreen(targetPoint)
+            if not OnScreen then continue end
+
+            local Distance = (mousePos - ScreenPosition).Magnitude
+            if Distance <= maxRadius and (DistanceToMouse == nil or Distance < DistanceToMouse) then
+                ClosestPart = part
+                ClosestPoint = targetPoint
+                DistanceToMouse = Distance
+            end
         end
     end
 
-    return Closest
+    -- IMPORTANTE: devuelve la posición para que el hook dispare ahí, y la parte para otras referencias
+    -- Puedes devolver solo la parte, o devolver la parte con la posición visible, según tu uso.
+    -- Por ejemplo, devolver ClosestPart y ClosestPoint juntos:
+    return ClosestPart, ClosestPoint
 end
+
+
+
 
 
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -271,7 +343,7 @@ local LastClick = 0
 local ClickDelay = 0.05 -- 20 disparos por segundo
 
 RunService.RenderStepped:Connect(function()
-    if not Toggles.AutoShoot.Value or not Toggles.aim_Enabled.Value then return end
+    if not (Toggles.AutoShoot and Toggles.AutoShoot.Value) or not (Toggles.aim_Enabled and Toggles.aim_Enabled.Value) then return end
 
     local targetPart = getClosestPlayer()
     if targetPart then
@@ -457,7 +529,7 @@ end)
     Main:AddToggle("VisibleCheck", {Text = "Visible Check", Default = SilentAimSettings.VisibleCheck}):OnChanged(function()
         SilentAimSettings.VisibleCheck = Toggles.VisibleCheck.Value
     end)
-    Main:AddDropdown("TargetPart", {AllowNull = true, Text = "Target Part", Default = SilentAimSettings.TargetPart, Values = {"Head", "HumanoidRootPart", "Random"}}):OnChanged(function()
+    Main:AddDropdown("TargetPart", {AllowNull = true, Text = "Target Part", Default = SilentAimSettings.TargetPart, Values = {"Head", "HumanoidRootPart", "Random", "ClosestToMouse"}}):OnChanged(function()
         SilentAimSettings.TargetPart = Options.TargetPart.Value
     end)
     Main:AddDropdown("Method", {AllowNull = true, Text = "Silent Aim Method", Default = SilentAimSettings.SilentAimMethod, Values = {
@@ -652,17 +724,21 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
                 end
             end
         elseif Method == "Raycast" and Options.Method.Value == Method then
-            if ValidateArguments(Arguments, ExpectedArguments.Raycast) then
-                local A_Origin = Arguments[2]
+    if ValidateArguments(Arguments, ExpectedArguments.Raycast) then
+        local A_Origin = Arguments[2]
 
-                local HitPart = getClosestPlayer()
-                if HitPart then
-                    Arguments[3] = getDirection(A_Origin, HitPart.Position)
+        -- getClosestPlayer debe retornar parte y punto visible (vector3)
+        local HitPart, HitPoint = getClosestPlayer()
+        if HitPart and HitPoint then
+            Arguments[3] = getDirection(A_Origin, HitPoint) -- Usar punto visible cercano al mouse
 
-                    return oldNamecall(unpack(Arguments))
-                end
-            end
+            return oldNamecall(unpack(Arguments))
         end
+    end
+end
+
+   
+
     end
     return oldNamecall(...)
 end))
