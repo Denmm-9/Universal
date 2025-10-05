@@ -228,7 +228,7 @@ local function GetClosestPointOnPartToMouse(part, mousePos)
     local cf = part.CFrame
 
     -- Porcentaje para acercarse a la esquina sin llegar al extremo total
-    local cornerOffsetFactor = 0.5
+    local cornerOffsetFactor = 0.8
 
     local offsets = {
         Vector3.new( size.X * cornerOffsetFactor,  size.Y * 2,  size.Z * cornerOffsetFactor),
@@ -246,21 +246,19 @@ local function GetClosestPointOnPartToMouse(part, mousePos)
 
     -- Referencia vertical (altura) para filtrar puntos alejados verticalmente
     local referenceY = part.Position.Y
-    local verticalTolerance = 2 -- studs, ajusta según lo que prefieras
+    local verticalTolerance = 0  -- studs, ajusta según lo que prefieras
 
     for _, offset in ipairs(offsets) do
         local worldPoint = (cf * CFrame.new(offset)).p
         -- Filtrar puntos con diferencia vertical aceptable
-        if math.abs(worldPoint.Y - referenceY) <= verticalTolerance then
-            local screenPoint, onScreen = getPositionOnScreen(worldPoint)
-            if onScreen then
-                local dist = (mousePos - screenPoint).Magnitude
-                if dist < closestDist then
-                    closestDist = dist
-                    closestPoint = worldPoint
-                end
-            end
-        end
+        local screenPoint, onScreen = getPositionOnScreen(worldPoint)
+if onScreen then
+    local dist = (mousePos - screenPoint).Magnitude
+    if dist < closestDist then
+        closestDist = dist
+        closestPoint = worldPoint
+    end
+end
     end
 
     return closestPoint or part.Position
