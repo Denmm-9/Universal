@@ -227,7 +227,6 @@ local function GetClosestPointOnPartToMouse(part, mousePos)
     local size = part.Size / 2
     local cf = part.CFrame
 
-    -- Porcentaje para acercarse a la esquina sin llegar al extremo total
     local cornerOffsetFactor = 0.8
 
     local offsets = {
@@ -244,13 +243,12 @@ local function GetClosestPointOnPartToMouse(part, mousePos)
     local closestPoint = nil
     local closestDist = math.huge
 
-    -- Referencia vertical (altura) para filtrar puntos alejados verticalmente
     local referenceY = part.Position.Y
-    local verticalTolerance = 0  -- studs, ajusta según lo que prefieras
+    local verticalTolerance = 4
 
     for _, offset in ipairs(offsets) do
         local worldPoint = (cf * CFrame.new(offset)).p
-        -- Filtrar puntos con diferencia vertical aceptable
+
         local screenPoint, onScreen = getPositionOnScreen(worldPoint)
 if onScreen then
     local dist = (mousePos - screenPoint).Magnitude
@@ -264,8 +262,6 @@ end
     return closestPoint or part.Position
 end
 
-
-
 local function getClosestPlayer()
     if not Options.TargetPart.Value then return end
 
@@ -273,7 +269,7 @@ local function getClosestPlayer()
     local ClosestPoint = nil
     local DistanceToMouse = nil
 
-    local mousePos = getMousePosition() -- tu función que obtiene la posición del mouse en pantalla
+    local mousePos = getMousePosition() 
     local maxRadius = Options.Radius.Value or 2000
 
     for _, Player in next, GetPlayers(Players) do
@@ -326,19 +322,12 @@ local function getClosestPlayer()
         end
     end
 
-    -- IMPORTANTE: devuelve la posición para que el hook dispare ahí, y la parte para otras referencias
-    -- Puedes devolver solo la parte, o devolver la parte con la posición visible, según tu uso.
-    -- Por ejemplo, devolver ClosestPart y ClosestPoint juntos:
     return ClosestPart, ClosestPoint
 end
 
-
-
-
-
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local LastClick = 0
-local ClickDelay = 0.05 -- 20 disparos por segundo
+local ClickDelay = 0.10
 
 RunService.RenderStepped:Connect(function()
     if not (Toggles.AutoShoot and Toggles.AutoShoot.Value) or not (Toggles.aim_Enabled and Toggles.aim_Enabled.Value) then return end
@@ -347,7 +336,6 @@ RunService.RenderStepped:Connect(function()
     if targetPart then
         local targetPlayer = Players:GetPlayerFromCharacter(targetPart.Parent)
         
-        -- AutoShoot solo dispara si el target es visible, independientemente de toggle VisibleCheck
         if IsPlayerVisible(targetPlayer) then
             if tick() - LastClick >= ClickDelay then
                 local mousePos = UserInputService:GetMouseLocation()
@@ -503,33 +491,35 @@ local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violi
 Library:SetWatermark("Non Uni")
 
 local Window = Library:CreateWindow({Title = 'Universal Silent Aim', Center = true, AutoShow = true, TabPadding = 8, MenuFadeTime = 0.2})
+
 local GeneralTab = Window:AddTab("General")
 local MainBOX = GeneralTab:AddLeftTabbox("Main") do
     local Main = MainBOX:AddTab("Main")
-    
+
     Main:AddToggle("aim_Enabled", {Text = "Enabled"}):AddKeyPicker("aim_Enabled_KeyPicker", {Default = "RightAlt", SyncToggleState = true, Mode = "Toggle", Text = "Enabled", NoUI = false});
     Options.aim_Enabled_KeyPicker:OnClick(function()
         SilentAimSettings.Enabled = not SilentAimSettings.Enabled
-        
         Toggles.aim_Enabled.Value = SilentAimSettings.Enabled
         Toggles.aim_Enabled:SetValue(SilentAimSettings.Enabled)
-        
         mouse_box.Visible = SilentAimSettings.Enabled
     end)
 
     Main:AddToggle("AutoShoot", {Text = "TriggerbotVisible", Default = SilentAimSettings.AutoShoot or false}):OnChanged(function()
-    SilentAimSettings.AutoShoot = Toggles.AutoShoot.Value
-end)
+        SilentAimSettings.AutoShoot = Toggles.AutoShoot.Value
+    end)
 
     Main:AddToggle("TeamCheck", {Text = "Team Check", Default = SilentAimSettings.TeamCheck}):OnChanged(function()
         SilentAimSettings.TeamCheck = Toggles.TeamCheck.Value
     end)
+
     Main:AddToggle("VisibleCheck", {Text = "Visible Check", Default = SilentAimSettings.VisibleCheck}):OnChanged(function()
         SilentAimSettings.VisibleCheck = Toggles.VisibleCheck.Value
     end)
+
     Main:AddDropdown("TargetPart", {AllowNull = true, Text = "Target Part", Default = SilentAimSettings.TargetPart, Values = {"Head", "HumanoidRootPart", "Random", "ClosestToMouse"}}):OnChanged(function()
         SilentAimSettings.TargetPart = Options.TargetPart.Value
     end)
+
     Main:AddDropdown("Method", {AllowNull = true, Text = "Silent Aim Method", Default = SilentAimSettings.SilentAimMethod, Values = {
         "Raycast","FindPartOnRay",
         "FindPartOnRayWithWhitelist",
@@ -538,13 +528,13 @@ end)
     }}):OnChanged(function() 
         SilentAimSettings.SilentAimMethod = Options.Method.Value 
     end)
+
     Main:AddSlider('HitChance', {
         Text = 'Hit chance',
         Default = 100,
         Min = 0,
         Max = 100,
         Rounding = 1,
-    
         Compact = false,
     })
     Options.HitChance:OnChanged(function()
@@ -555,36 +545,31 @@ end
 local MiscellaneousBOX = GeneralTab:AddLeftTabbox("Miscellaneous")
 local FieldOfViewBOX = GeneralTab:AddLeftTabbox("Field Of View") do
     local Main = FieldOfViewBOX:AddTab("Visuals")
-    
+
     Main:AddToggle("Visible", {Text = "Show FOV Circle"}):AddColorPicker("Color", {Default = Color3.fromRGB(54, 57, 241)}):OnChanged(function()
         fov_circle.Visible = Toggles.Visible.Value
         SilentAimSettings.FOVVisible = Toggles.Visible.Value
     end)
+
     Main:AddSlider("Radius", {Text = "FOV Circle Radius", Min = 0, Max = 360, Default = 200, Rounding = 0}):OnChanged(function()
         fov_circle.Radius = Options.Radius.Value
         SilentAimSettings.FOVRadius = Options.Radius.Value
     end)
+
     Main:AddToggle("MousePosition", {Text = "Show Silent Aim Target"}):AddColorPicker("MouseVisualizeColor", {Default = Color3.fromRGB(54, 57, 241)}):OnChanged(function()
         mouse_box.Visible = Toggles.MousePosition.Value 
         SilentAimSettings.ShowSilentAimTarget = Toggles.MousePosition.Value 
     end)
 
-    Main:AddToggle("HighlightEnabled", {Text = "Highlight Target", Default = false})
-    :OnChanged(function()
+    Main:AddToggle("HighlightEnabled", {Text = "Highlight Target", Default = false}):OnChanged(function()
         SilentAimSettings.HighlightEnabled = Toggles.HighlightEnabled.Value
     end)
 
-Main:AddToggle("HeadDotEnabled", {Text = "Head Dot", Default = false})
-    :OnChanged(function()
+    Main:AddToggle("HeadDotEnabled", {Text = "Head Dot", Default = false}):OnChanged(function()
         SilentAimSettings.HeadDotEnabled = Toggles.HeadDotEnabled.Value
-    
-        if not SilentAimSettings.HeadDotEnabled then
-            if cachedHeadDots then  
-                for _, dot in pairs(cachedHeadDots) do
-                    if dot then
-                        dot:Destroy()
-                    end
-                end
+        if not SilentAimSettings.HeadDotEnabled and cachedHeadDots then  
+            for _, dot in pairs(cachedHeadDots) do
+                if dot then dot:Destroy() end
             end
             cachedHeadDots = {} 
         end
@@ -602,13 +587,11 @@ end
 
 local CreateConfigurationBOX = GeneralTab:AddRightTabbox("Create Configuration") do 
     local Main = CreateConfigurationBOX:AddTab("Create Configuration")
-    
     Main:AddInput("CreateConfigTextBox", {Default = "", Numeric = false, Finished = false, Text = "Create Configuration to Create", Tooltip = "Creates a configuration file containing settings you can save and load", Placeholder = "File Name here"}):OnChanged(function()
         if Options.CreateConfigTextBox.Value and string.len(Options.CreateConfigTextBox.Value) ~= "" then 
             FileToSave = Options.CreateConfigTextBox.Value
         end
     end)
-    
     Main:AddButton("Create Configuration File", function()
         if FileToSave ~= "" or FileToSave ~= nil then 
             UpdateFile(FileToSave)
@@ -628,12 +611,10 @@ end
 
 local LoadConfigurationBOX = GeneralTab:AddRightTabbox("Load Configuration") do 
     local Main = LoadConfigurationBOX:AddTab("Load Configuration")
-    
     Main:AddDropdown("LoadConfigurationDropdown", {AllowNull = true, Values = GetFiles(), Text = "Choose Configuration to Load"})
     Main:AddButton("Load Configuration", function()
         if table.find(GetFiles(), Options.LoadConfigurationDropdown.Value) then
             LoadFile(Options.LoadConfigurationDropdown.Value)
-            
             Toggles.TeamCheck:SetValue(SilentAimSettings.TeamCheck)
             Toggles.VisibleCheck:SetValue(SilentAimSettings.VisibleCheck)
             Options.TargetPart:SetValue(SilentAimSettings.TargetPart)
@@ -645,10 +626,32 @@ local LoadConfigurationBOX = GeneralTab:AddRightTabbox("Load Configuration") do
             Options.Amount:SetValue(SilentAimSettings.MouseHitPredictionAmount)
             Options.HitChance:SetValue(SilentAimSettings.HitChance)
             Toggles.AutoShoot:SetValue(SilentAimSettings.AutoShoot)
-
         end
     end)
 end
+
+local SettingsTab = Window:AddTab("Settings")
+local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/SaveManager.lua"))()
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+ThemeManager:SetFolder("UniversalSilentAim")
+SaveManager:SetFolder("UniversalSilentAim/configs")
+SaveManager:IgnoreThemeSettings()
+SaveManager:BuildConfigSection(SettingsTab)
+ThemeManager:ApplyToTab(SettingsTab)
+
+local UnloadTab = SettingsTab:AddLeftTabbox("Unload") do
+    local Tab = UnloadTab:AddTab("Unload Script")
+    Tab:AddButton("Unload", function()
+        Library:Unload() 
+        for i,v in pairs(getconnections or {})() do
+            if v.Disconnect then pcall(function() v:Disconnect() end) end
+        end
+        print("Silent Aim unloaded.")
+    end)
+end
+Library:Notify("Silent Aim UI Loaded", 3)
 
 resume(create(function()
     RenderStepped:Connect(function()
@@ -656,8 +659,6 @@ resume(create(function()
             if getClosestPlayer() then 
                 local Root = getClosestPlayer().Parent.PrimaryPart or getClosestPlayer()
                 local RootToViewportPoint, IsOnScreen = WorldToViewportPoint(Camera, Root.Position);
-                -- using PrimaryPart instead because if your Target Part is "Random" it will flicker the square between the Target's Head and HumanoidRootPart (its annoying)
-                
                 mouse_box.Visible = IsOnScreen
                 mouse_box.Position = Vector2.new(RootToViewportPoint.X, RootToViewportPoint.Y)
             else 
@@ -665,7 +666,6 @@ resume(create(function()
                 mouse_box.Position = Vector2.new()
             end
         end
-        
         if Toggles.Visible.Value then 
             fov_circle.Visible = Toggles.Visible.Value
             fov_circle.Color = Options.Color.Value
@@ -725,17 +725,14 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
     if ValidateArguments(Arguments, ExpectedArguments.Raycast) then
         local A_Origin = Arguments[2]
 
-        -- getClosestPlayer debe retornar parte y punto visible (vector3)
         local HitPart, HitPoint = getClosestPlayer()
         if HitPart and HitPoint then
-            Arguments[3] = getDirection(A_Origin, HitPoint) -- Usar punto visible cercano al mouse
+            Arguments[3] = getDirection(A_Origin, HitPoint) 
 
             return oldNamecall(unpack(Arguments))
         end
     end
 end
-
-   
 
     end
     return oldNamecall(...)
