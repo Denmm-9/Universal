@@ -227,40 +227,42 @@ local function GetClosestPointOnPartToMouse(part, mousePos)
     local size = part.Size / 2
     local cf = part.CFrame
 
-    local cornerOffsetFactor = 0.3
+    -- Menor factor para no irse tanto a las esquinas
+    local cornerOffsetFactor = 0.4
 
+    -- Lista de offsets: esquinas, centro y puntos intermedios
     local offsets = {
-        Vector3.new( size.X * cornerOffsetFactor,  size.Y * 2,  size.Z * cornerOffsetFactor),
-        Vector3.new( size.X * cornerOffsetFactor,  size.Y * cornerOffsetFactor, -size.Z * cornerOffsetFactor),
-        Vector3.new( size.X * cornerOffsetFactor, -size.Y * cornerOffsetFactor,  size.Z * cornerOffsetFactor),
-        Vector3.new( size.X * cornerOffsetFactor, -size.Y * cornerOffsetFactor, -size.Z * cornerOffsetFactor),
-        Vector3.new(-size.X * cornerOffsetFactor,  size.Y * cornerOffsetFactor,  size.Z * cornerOffsetFactor),
-        Vector3.new(-size.X * cornerOffsetFactor,  size.Y * cornerOffsetFactor, -size.Z * cornerOffsetFactor),
-        Vector3.new(-size.X * cornerOffsetFactor, -size.Y * cornerOffsetFactor,  size.Z * cornerOffsetFactor),
+        Vector3.new( 0, 0, 0), -- centro
+        Vector3.new( size.X * cornerOffsetFactor, 0, 0),
+        Vector3.new(-size.X * cornerOffsetFactor, 0, 0),
+        Vector3.new(0, size.Y * cornerOffsetFactor, 0),
+        Vector3.new(0, -size.Y * cornerOffsetFactor, 0),
+        Vector3.new(0, 0, size.Z * cornerOffsetFactor),
+        Vector3.new(0, 0, -size.Z * cornerOffsetFactor),
+        Vector3.new( size.X * cornerOffsetFactor,  size.Y * cornerOffsetFactor,  size.Z * cornerOffsetFactor),
         Vector3.new(-size.X * cornerOffsetFactor, -size.Y * cornerOffsetFactor, -size.Z * cornerOffsetFactor),
+        -- Puedes agregar más puntos intermedios aquí si quieres más precisión
     }
 
     local closestPoint = nil
     local closestDist = math.huge
 
-    local referenceY = part.Position.Y
-    local verticalTolerance = 10
-
     for _, offset in ipairs(offsets) do
         local worldPoint = (cf * CFrame.new(offset)).p
 
         local screenPoint, onScreen = getPositionOnScreen(worldPoint)
-if onScreen then
-    local dist = (mousePos - screenPoint).Magnitude
-    if dist < closestDist then
-        closestDist = dist
-        closestPoint = worldPoint
-    end
-end
+        if onScreen then
+            local dist = (mousePos - screenPoint).Magnitude
+            if dist < closestDist then
+                closestDist = dist
+                closestPoint = worldPoint
+            end
+        end
     end
 
     return closestPoint or part.Position
 end
+
 
 local function getClosestPlayer()
     if not Options.TargetPart.Value then return end
