@@ -227,7 +227,7 @@ local function GetClosestPointOnPartToMouse(part, mousePos)
     local size = part.Size / 2
     local cf = part.CFrame
 
-    local cornerOffsetFactor = 0.7
+    local cornerOffsetFactor = 0.5
 
     local offsets = {
         Vector3.new( size.X * cornerOffsetFactor,  size.Y * 2,  size.Z * cornerOffsetFactor),
@@ -244,7 +244,7 @@ local function GetClosestPointOnPartToMouse(part, mousePos)
     local closestDist = math.huge
 
     local referenceY = part.Position.Y
-    local verticalTolerance = 10
+    local verticalTolerance = 3
 
     for _, offset in ipairs(offsets) do
         local worldPoint = (cf * CFrame.new(offset)).p
