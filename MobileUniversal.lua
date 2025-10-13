@@ -31,6 +31,7 @@ local Camera = workspace.CurrentCamera
 local RunService = game:GetService("RunService") 
 local LocalPlayer = Players.LocalPlayer 
 local CurrentCamera = game:GetService("Workspace").CurrentCamera
+local UserInputService = game:GetService("UserInputService")
 
 -- VARIABLES
 local hitboxActive = false
@@ -94,6 +95,7 @@ local function isVisible(position, character)
     return #workspace.CurrentCamera:GetPartsObscuringTarget({position}, excludeParts) == 0
 end
 
+-- AIMBOT
 local function updateAimbot()
     if AimbotEnabled then
         local closestPlayer = nil
@@ -136,7 +138,6 @@ local function updateAimbot()
         CurrentTarget = nil
     end
 end
-
 RunService.RenderStepped:Connect(updateAimbot)
 
 -- BOX
@@ -194,7 +195,6 @@ local function updateBox(player)
 
             local sizeX, sizeY = baseSizeX * scaleFactor, baseSizeY * scaleFactor
             local posX, posY = Vector.X - sizeX / 2, Vector.Y - sizeY / 2.3
-
             posX = posX + 41  
 
             Box.Background.Size = Vector2.new(sizeX, sizeY)
@@ -280,7 +280,6 @@ end
 -- FOV
 RunService.RenderStepped:Connect(function()
     if FOVVisible then
-
         DrawingFOV.Visible = true
         DrawingFOV.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
         DrawingFOV.Radius = FOVSize
@@ -292,24 +291,21 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- HITBOX
 local function updateHitboxesForAllCharacters()
     for _, player in pairs(game.Players:GetPlayers()) do
-
         if player ~= game.Players.LocalPlayer and player.Character then
             local character = player.Character
             local head = character:FindFirstChild("Head")
 
             if head then
-         
                 if hitboxActive and isValidTarget(player, character) then
-            
                     if not originalHeadSizes[head] then
                         originalHeadSizes[head] = head.Size 
                     end
                     head.Size = activeHeadSize
                     head.Transparency = hitboxTransparency
                 elseif originalHeadSizes[head] then
-
                     head.Size = originalHeadSizes[head]
                     head.Transparency = 0  
                     originalHeadSizes[head] = nil
@@ -320,15 +316,81 @@ local function updateHitboxesForAllCharacters()
 end
 game:GetService("RunService").Heartbeat:Connect(updateHitboxesForAllCharacters)
 
-AimbotGroup:AddToggle("Aimbot", {
-    Text = "Aimbot",
-    Default = false,
-    Callback = function(state)
-        AimbotEnabled = state
-        if not state then
-            CurrentTarget = nil
-        end
-    end
+-- FLOATER 
+local Indicator = Drawing.new("Square")
+Indicator.Size = Vector2.new(130,35)
+Indicator.Position = Vector2.new(Camera.ViewportSize.X-160,60)
+Indicator.Filled = true
+Indicator.Color = Color3.fromRGB(255,70,70)
+Indicator.Thickness = 2
+Indicator.Visible = false
+
+local IndicatorText = Drawing.new("Text")
+IndicatorText.Text = "Aimbot: OFF"
+IndicatorText.Size = 16
+IndicatorText.Center = true
+IndicatorText.Outline = true
+IndicatorText.Color = Color3.fromRGB(255,255,255)
+IndicatorText.Position = Vector2.new(Indicator.Position.X+65, Indicator.Position.Y+8)
+IndicatorText.Visible = false
+
+local function updateIndicator()
+	if AimbotEnabled then
+		Indicator.Color = Color3.fromRGB(0,255,100)
+		IndicatorText.Text = "Aimbot: ON"
+	else
+		Indicator.Color = Color3.fromRGB(255,70,70)
+		IndicatorText.Text = "Aimbot: OFF"
+	end
+	Indicator.Visible = true
+	IndicatorText.Visible = true
+end
+
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		local pos = UserInputService:GetMouseLocation()
+		if pos.X >= Indicator.Position.X and pos.X <= Indicator.Position.X+Indicator.Size.X
+		and pos.Y >= Indicator.Position.Y and pos.Y <= Indicator.Position.Y+Indicator.Size.Y then
+
+			AimbotEnabled = not AimbotEnabled
+			updateIndicator()
+
+			pcall(function()
+				if Options and Options.AimbotToggle and type(Options.AimbotToggle.SetValue) == "function" then
+					Options.AimbotToggle:SetValue(AimbotEnabled)
+					return
+				end
+
+				if AimbotToggleObj and type(AimbotToggleObj.SetValue) == "function" then
+					AimbotToggleObj:SetValue(AimbotEnabled)
+					return
+				end
+
+				if type(AimbotGroup.ObjectList) == "table" then
+					for _, obj in pairs(AimbotGroup.ObjectList) do
+						if obj and obj.Name == "AimbotToggle" and type(obj.SetValue) == "function" then
+							obj:SetValue(AimbotEnabled)
+							break
+						end
+					end
+				end
+			end)
+
+		end
+	end
+end)
+
+
+-- GUI
+AimbotGroup:AddToggle("AimbotToggle",{
+	Text="Aimbot",
+	Default=false,
+	Callback=function(state)
+		AimbotEnabled = state
+		updateIndicator()
+		if not state then CurrentTarget=nil end
+	end
 })
 
 AimbotGroup:AddToggle("FOV", {
@@ -460,8 +522,8 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- SETTINGS TAB
 local MenuGroup = SettingsTab:AddLeftGroupbox("Menu")
-
 MenuGroup:AddToggle("KeybindMenuOpen", {
 	Default = Library.KeybindFrame.Visible,
 	Text = "Open Keybind Menu",
@@ -499,52 +561,57 @@ MenuGroup:AddDivider()
 MenuGroup:AddLabel("Menu bind")
 	:AddKeyPicker("MenuKeybind", { Default = "Delete", NoUI = true, Text = "Menu keybind" })
 
-    local function UnloadScript()
-
-        hitboxActive = false
-        AimbotEnabled = false
-        FOVVisible = false
-        ESPEnabled = false
-        ChamsActive = false
-        
-        for _, player in pairs(Players:GetPlayers()) do
-            removeChams(player)
-        end
-        Chams = {}
+local function UnloadScript()
+    hitboxActive = false
+    AimbotEnabled = false
+    FOVVisible = false
+    ESPEnabled = false
+    ChamsActive = false
     
-        for _, Box in pairs(ESPBoxes) do
-            if Box then
-                for _, line in pairs(Box) do
-                    if line.Remove then
-                        line:Remove()
-                    end
+    for _, player in pairs(Players:GetPlayers()) do
+        removeChams(player)
+    end
+    Chams = {}
+
+    for _, Box in pairs(ESPBoxes) do
+        if Box then
+            for _, line in pairs(Box) do
+                if line.Remove then
+                    line:Remove()
                 end
             end
         end
-        ESPBoxes = {}
-    
-        DrawingFOV.Visible = false
-
-        Library:Notify("Script Unloaded Successfully", 3)
-        task.wait(0.5)
-        Library:Unload()
     end
-    
-    MenuGroup:AddButton("Unload", function()
-        UnloadScript()
-    end)
-    
-Library.ToggleKeybind = Options.MenuKeybind 
+    ESPBoxes = {}
 
+    DrawingFOV.Visible = false
+    Indicator.Visible = false
+    IndicatorText.Visible = false
+
+    Library:Notify("Script Unloaded Successfully", 3)
+    task.wait(0.5)
+    Library:Unload()
+end
+
+MenuGroup:AddButton("Unload", function()
+    UnloadScript()
+end)
+
+Library.ToggleKeybind = Options.MenuKeybind 
 Options.MenuKeybind:OnChanged(function()
     Library:Notify('Menu toggle key changed to [' .. Options.MenuKeybind.Value .. ']')
 end)
 
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
-
 SaveManager:BuildConfigSection(SettingsTab)
 ThemeManager:ApplyToTab(SettingsTab)
+
+pcall(function()
+	if type(ThemeManager.ApplyTheme) == "function" then
+		ThemeManager:ApplyTheme("Material") 
+	end
+end)
 
 SaveManager:LoadAutoloadConfig()
 Library:Notify("Script Loaded Successfully", 5)
